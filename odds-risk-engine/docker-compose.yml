@@ -15,6 +15,11 @@ services:
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   api:
     build: ./backend
     env_file: .env
@@ -23,7 +28,9 @@ services:
       REDIS_URL: redis://redis:6379/0
     command: sh -c "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     ports: ["8000:8000"]
-    depends_on: [db, redis]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
   odds-simulator:
     build: ./backend
     env_file: .env
@@ -31,7 +38,9 @@ services:
       DATABASE_URL: postgres://odds:odds@db:5432/odds
       REDIS_URL: redis://redis:6379/0
     command: python manage.py simulate_odds --interval 5
-    depends_on: [api, redis]
+    depends_on:
+      api: {condition: service_started}
+      redis: {condition: service_healthy}
   frontend:
     build: ./frontend
     ports: ["5173:5173"]
